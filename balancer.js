@@ -9,13 +9,30 @@ const workers = ["http://localhost:3001"
 
 let current=0;
 
-app.get("/",async(req,res) => {
-	const worker=workers[current];
-	current=(current+1)%workers.length;
-	
-	const response = await axios.get(worker);
-	res.send(response.data);
+async function isalive(worker) {
+	try {
+		await axios.get(worker + "/health",{timeout: 1000});
+		return true;
+	} catch {
+		console.log("worker down");
+		return false;
 	}
+}
+
+app.get("/",async(req,res) => {
+	for(let i=0; i< workers.length ;i++) {	
+		const worker = workers[current];
+		current=(current+1)%workers.length;
+
+		if(await isalive(worker)){
+			console.log("forwarding to ",worker);
+			const response = await axios.get(worker);
+			return res.send(response.data);
+		}
+	}
+		res.status(503).send("no worker is available");
+}
 );
 
 app.listen(3000, ()=> {console.log("load balancer running on port 3000")} );
+
